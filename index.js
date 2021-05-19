@@ -14,10 +14,11 @@ app.use(cors());
 const BLOCKS_PER_EPOCH = 17280;
 
 /* 
-APIs to implement ->
-1. Find when was VG registered
-2. Find estimated APY for a VG
-3. List of currently elected Validators
+TODO:
+  [ ] Fix block to epoch logic.
+  [ ] Proper error handling
+  [ ] Comments where necessary
+  [ ] Split into multiple files
 */
 
 app.get("/current-epoch", async (req, res) => {
@@ -37,6 +38,20 @@ app.get("/target-apy", async (req, res) => {
   return res.json({ target_apy: targetVotingYield });
 });
 
+app.get("/elected-validators", async (req, res) => {
+  const electedValidators = await getElectedValidators();
+  return res.json({ validators: electedValidators });
+});
+
+app.get("/epoch-vg-registered/:address", async (req, res) => {
+  const { address } = req.params;
+  const vgRegisteredEvent = await getBlockVGRegistered(kit, address);
+  return res.json({
+    block: vgRegisteredEvent.blockNumber,
+    epoch: getEpochFromBlock(vgRegisteredEvent.blockNumber),
+  });
+});
+
 app.listen(5000, async () => {
   console.log("Lezzz go 🚀");
 });
@@ -45,7 +60,12 @@ app.listen(5000, async () => {
 function getEpochFromBlock(block) {
   if (block == 0) return 0;
 
-  return Math.floor(block / BLOCKS_PER_EPOCH);
+  let epochNumber = Math.floor(block / BLOCKS_PER_EPOCH);
+  if (block % BLOCKS_PER_EPOCH == 0) {
+    return epochNumber;
+  } else {
+    return epochNumber + 1;
+  }
 }
 
 async function getVGSlashingMultiplier(kit, address) {
@@ -84,4 +104,31 @@ async function getTargetVotingYield(kit) {
 
   // target yield -> targetVotingYield * rewardMultiplier
   return targetVotingYield.times(rewardMultiplier).times(100).toFixed();
+}
+
+async function getElectedValidators() {
+  const kit = newKit(`https://forno.celo.org`);
+  const validators = await kit.contracts.getValidators();
+  const election = await kit.contracts.getElection();
+
+  const electedValidatorSigners = await election.getCurrentValidatorSigners();
+  const electedValidators = await Promise.all(
+    electedValidatorSigners.map(async (signer) => {
+      const account = await validators.signerToAccount(signer);
+      return validators.getValidator(account);
+    })
+  );
+  return electedValidators;
+}
+
+async function getBlockVGRegistered(kit, address) {
+  const validators = await kit.contracts.getValidators();
+  const latestBlock = await kit.web3.eth.getBlockNumber();
+  const events = await validators.getPastEvents("ValidatorGroupRegistered", {
+    fromBlock: 1,
+    toBlock: latestBlock,
+  });
+
+  const vgRegisteredEvent = events.find((e) => e.returnValues.group == address);
+  return vgRegisteredEvent;
 }
