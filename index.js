@@ -2,20 +2,7 @@ import express from "express";
 import morgan from "morgan";
 import cors from "cors";
 import { newKit } from "@celo/contractkit";
-import swaggerUi from "swagger-ui-express";
-
-const options = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Celo on-chain data service",
-      version: "1.0.0",
-    },
-  },
-  apis: ["index.js"],
-};
-const specs = swaggerJsdoc(options);
-specs.then((spec) => console.log(spec.paths));
+import BigNumber from "bignumber.js";
 
 const app = express();
 const kit = newKit(`https://forno.celo.org`);
@@ -23,7 +10,6 @@ const kit = newKit(`https://forno.celo.org`);
 app.use(express.json());
 app.use(morgan("tiny"));
 app.use(cors());
-// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 const BLOCKS_PER_EPOCH = 17280;
 
@@ -34,61 +20,21 @@ APIs to implement ->
 3. List of currently elected Validators
 */
 
-/**
- * @openapi
- * /:
- *   get:
- *     description: Welcome to swagger-jsdoc!
- *     responses:
- *       200:
- *         description: Returns a mysterious string.
- */
-app.get("/", async (req, res) => {
-  return res.json({ API: "Fetch Celo on-chain data." });
-});
-
-/**
- * @openapi
- * /:
- *   get:
- *     description: Welcome to swagger-jsdoc!
- *     responses:
- *       200:
- *         description: Returns a mysterious string.
- */
 app.get("/current-epoch", async (req, res) => {
   const currentBlockNumber = await kit.web3.eth.getBlockNumber();
   return res.json({ epoch: getEpochFromBlock(currentBlockNumber) });
 });
 
-/**
- * @openapi
- * /:
- *   get:
- *     description: Welcome to swagger-jsdoc!
- *     responses:
- *       200:
- *         description: Returns a mysterious string.
- */
 app.get("/downtime-score/:address", async (req, res) => {
   const { address } = req.params;
   const slashingMultiplier = await getVGSlashingMultiplier(kit, address);
   return res.json({ multiplier: slashingMultiplier });
 });
 
-/**
- * @openapi
- * /:
- *   get:
- *     description: Welcome to swagger-jsdoc!
- *     responses:
- *       200:
- *         description: Returns a mysterious string.
- */
-app.get("/target-voting-yield", async (req, res) => {
+app.get("/target-apy", async (req, res) => {
   const targetVotingYield = await getTargetVotingYield(kit);
 
-  return res.json({ target_yield: targetVotingYield });
+  return res.json({ target_apy: targetVotingYield });
 });
 
 app.listen(5000, async () => {
@@ -137,5 +83,5 @@ async function getTargetVotingYield(kit) {
   const rewardMultiplier = BigNumber(rewardMultiplierResp).div(10 ** 24);
 
   // target yield -> targetVotingYield * rewardMultiplier
-  console.log(targetVotingYield.times(rewardMultiplier).times(100).toString());
+  return targetVotingYield.times(rewardMultiplier).times(100).toFixed();
 }
