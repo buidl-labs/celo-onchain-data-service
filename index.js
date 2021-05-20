@@ -50,7 +50,13 @@ app.get("/target-apy", async (req, res) => {
 app.get("/elected-validators", async (req, res) => {
   try {
     const electedValidators = await getElectedValidators(kit);
-    return res.json({ validators: electedValidators });
+    return res.json({
+      validators: electedValidators.map((v) => ({
+        name: v.name,
+        address: v.address,
+        group: v.affiliation,
+      })),
+    });
   } catch (err) {
     return res.json({ error: err.message }).status(500);
   }
