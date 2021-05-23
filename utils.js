@@ -77,6 +77,8 @@ export async function getBlockVGRegistered(kit, address) {
     toBlock: latestBlock,
   });
 
-  const vgRegisteredEvent = events.find((e) => e.returnValues.group == address);
+  const vgRegisteredEvent = events.find(
+    (e) => e.returnValues.group.toLowerCase() == address
+  );
   return vgRegisteredEvent;
 }
